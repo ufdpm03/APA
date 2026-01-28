@@ -309,7 +309,7 @@ if run:
 
     formatted_refs_applied = False
     if format_refs:
-        formatted_refs_applied = apply_references_hanging_indent(doc)
+        formatted_refs_applied = rebuild_references_section_sorted(doc)
 
     # Write output
     out = io.BytesIO()
