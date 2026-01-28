@@ -113,6 +113,81 @@ def extract_reference_keys(reference_entries):
 # -----------------------------
 # DOCX formatting helpers
 # -----------------------------
+def delete_paragraph(paragraph):
+    p = paragraph._element
+    p.getparent().remove(p)
+    paragraph._p = paragraph._element = None
+
+
+def sort_reference_entries_apa(reference_entries):
+    """
+    Sort APA references alphabetically by:
+    - first author last name
+    - organization name if no author
+    - year as secondary key
+    """
+    def sort_key(entry):
+        entry = entry.strip()
+
+        # Author surname at start: "Smith, J."
+        m = re.match(r"^([A-Z][A-Za-z’'\-]+),", entry)
+        if m:
+            author = m.group(1).lower()
+        else:
+            # Organization author fallback
+            author = re.sub(r"[^A-Za-z]", "", entry.split("(")[0]).lower()
+
+        # Year
+        ym = re.search(r"\(\s*(\d{4}|n\.d\.)\s*\)", entry)
+        year = ym.group(1) if ym else "n.d."
+
+        return (author, year)
+
+    return sorted(reference_entries, key=sort_key)
+
+
+def rebuild_references_section_sorted(doc: Document):
+    """
+    Rebuilds the References section:
+    - Alphabetizes entries
+    - Applies APA hanging indent + double spacing
+    """
+    idx = find_references_start(doc.paragraphs)
+    if idx is None:
+        return False
+
+    # Extract reference paragraphs
+    ref_paragraphs = doc.paragraphs[idx + 1 :]
+    raw_entries = split_reference_entries(ref_paragraphs)
+
+    if not raw_entries:
+        return False
+
+    # Sort alphabetically
+    sorted_entries = sort_reference_entries_apa(raw_entries)
+
+    # Delete old reference paragraphs
+    for p in list(doc.paragraphs[idx + 1 :]):
+        delete_paragraph(p)
+
+    # Reinsert sorted references
+    for entry in sorted_entries:
+        p = doc.add_paragraph(entry)
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p.paragraph_format.line_spacing = 2.0
+        p.paragraph_format.left_indent = Inches(0.5)
+        p.paragraph_format.first_line_indent = Inches(-0.5)
+
+    # Format heading
+    heading = doc.paragraphs[idx]
+    heading.text = "References"
+    heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    heading.paragraph_format.line_spacing = 2.0
+    heading.paragraph_format.first_line_indent = None
+    heading.paragraph_format.left_indent = None
+
+    return True
+
 def set_document_margins(doc: Document, inches=1.0):
     for section in doc.sections:
         section.top_margin = Inches(inches)
